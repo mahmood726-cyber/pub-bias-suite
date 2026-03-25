@@ -134,6 +134,10 @@ Annotate each study with structured metadata to create the quality/design dimens
       "selection": "low"
     }
   },
+  // Note: ROBINS-I studies have 7 domains with different keys:
+  // confounding, selection_participants, classification_interventions,
+  // deviations, missing_data, measurement, selection_reported_result
+  // Schema is flexible — domain keys vary by tool
   "meta": { "year": 2019, "country": "UK", "multicenter": true }
 }
 ```
@@ -168,6 +172,8 @@ Treat every defensible analytical choice as a dimension in a specification space
 
 **Base grid**: 6 × 3 × 4 × 3 × 3 = **648 specifications**
 **With LOO (k=10)**: 648 × 11 = **7,128 specifications**
+
+**LOO cap**: For k > 30, LOO is replaced with random leave-d-out sampling (d=1, 30 random draws) to bound execution time. This keeps the sensitivity dimension at ≤31 levels regardless of k.
 
 #### 5.2.2 Optional Extension Dimensions
 
@@ -206,7 +212,7 @@ feasible_specs = [s for s in spec_grid if is_feasible(s, dossiers)]
 #### 5.4.2 Feasibility Filtering
 
 - **k-threshold pruning**: Quality/design filter leaves k < 2 → skip. Trim-and-fill needs k ≥ 5 → skip if insufficient. Selection model needs k ≥ 10 → skip if insufficient.
-- **Logical pruning**: FE + bias correction that modifies τ² → redundant. All-designs filter when dataset is RCT-only → collapses. LOO on k=2 after quality filter → leaves k=1, skip.
+- **Logical pruning**: FE + trim-and-fill → redundant (TF re-estimates τ², irrelevant under FE). FE + PET-PEESE → valid (regression-based, keep). FE + selection model → valid (likelihood-based, keep). All-designs filter when dataset is RCT-only → collapses. LOO on k=2 after quality filter → leaves k=1, skip.
 - **Convergence guards**: REML non-convergence → flag, DL fallback. PM non-convergence → flag, DL fallback. Selection model boundary → flag, report as NA. All failures logged, never silently dropped.
 
 #### 5.4.3 Per-Spec Output
@@ -291,7 +297,7 @@ This enables: *"Fragile overall (C_sig=62%), but Robust when restricted to low-R
 
 #### 6.2.3 M3: Influence Decomposition
 
-ANOVA η² for each dimension:
+ANOVA η² for each dimension (Type III sums of squares to handle unbalanced cells from feasibility pruning):
 > "What fraction of conclusion variance is explained by each analytical choice?"
 
 Example output:
@@ -441,7 +447,7 @@ Random 20 reviews from Pairwise70 → compare MES Python results against:
 - `metafor::trimfill()` for trim-and-fill
 - `metafor::regtest()` for Egger's regression
 - `metafor::selmodel()` for selection models (metafor 4.0+)
-- Tolerance: |Δ| < 1e-6 for θ, SE, τ²
+- Tolerance: |Δ| < 1e-6 for θ, SE, τ² (DL, REML, PM, SJ, ML, FE, trim-and-fill, Egger). Relaxed tolerance |Δ| < 1e-3 for selection models (optimizer differences between scipy and R are expected).
 
 ### 9.2 Batch Empirical Validation
 
